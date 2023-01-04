@@ -5,8 +5,14 @@ import numpy as np
 import sys
 import pandas as pd
 from multiprocessing import Pool
+import argparse
+
+parser = argparse.ArgumentParser()
+parser.add_argument('--submission_dir', type=str , required=True)
+args = parser.parse_args()
 
 benchmark = {"clicks":0.5255597442145808, "carts":0.4093328152483512, "orders":0.6487936598117477, "all":.5646320148830121}
+
 weights = {'clicks': 0.10, 'carts': 0.30, 'orders': 0.60}
 
 ## --------
@@ -75,10 +81,11 @@ def otto_metric(clicks, carts, orders, verbose = True):
     score += weights["orders"] * orders_recall
     if verbose:
         print('=============')
-        print('Overall Recall = {:.5f} (vs {:.5f} in benchmark)'.format(score, benchmark["all"]))
-        print('\t clicks_recall = {:.5f}'.format(clicks_recall))
-        print('\t carts_recall = {:.5f}'.format(carts_recall))
-        print('\t orders_recall = {:.5f}'.format(orders_recall))
+        print('| Overall Recall | {:.5f}'.format(score))
+        print('|   ----  | ----  |')
+        print('| clicks_recall | {:.5f}'.format(clicks_recall))
+        print('| carts_recall  | {:.5f}'.format(carts_recall))
+        print('| orders_recall | {:.5f}'.format(orders_recall))
         print('=============')
     
     return score
@@ -118,9 +125,9 @@ orders_df = df[df['session_type'].str.contains('_orders')]
 orders_df = orders_df['session_type'].apply(lambda x:x[:-7])
 '''
 
-clicks_df = load_type_df('./', 'clicks')
-carts_df = load_type_df('./', 'carts')
-orders_df = load_type_df('./', 'orders')
+clicks_df = load_type_df(args.submission_dir, 'clicks')
+carts_df = load_type_df(args.submission_dir, 'carts')
+orders_df = load_type_df(args.submission_dir, 'orders')
 
 
 # recall = otto_metric_piece( clicks_df, sys.argv[2])

@@ -5,8 +5,6 @@ import numpy as np
 from collections import defaultdict
 import logging
 
-# from numba.extending import models
-
 logging.basicConfig(level=logging.INFO)
 
 import polars as pl
@@ -15,6 +13,14 @@ from gensim.models import Word2Vec
 import glob
 
 import pandas as pd
+
+import argparse
+parser = argparse.ArgumentParser()
+# parser.add_argument('--valid_dir', type=str , required=True)
+parser.add_argument('--test_dir', type=str , required=True)
+parser.add_argument('--train_dir', type=str , required=True)
+# parser.add_argument('--out', type=str , required=True)
+args = parser.parse_args()
 
 type_labels = {'clicks':0, 'carts':1, 'orders':2}
 def load_df(files):    
@@ -27,9 +33,12 @@ def load_df(files):
     return pd.concat(dfs).reset_index(drop=True) #.astype({"ts": "datetime64[ms]"})
 
 ## -------
+train = pl.DataFrame(load_df(args.train_dir))
+test = pl.DataFrame(load_df(args.test_dir))
+# valid = pl.DataFrame(load_df(args.valid_dir))
 
-train = pl.DataFrame(load_df('./data/split_chunked_parquet/train_parquet/*'))
-test = pl.DataFrame(load_df('./data/split_chunked_parquet/test_parquet/*'))
+# train = pl.DataFrame(load_df('./data/split_chunked_parquet/train_parquet/*'))
+# test = pl.DataFrame(load_df('./data/split_chunked_parquet/test_parquet/*'))
 
 # train = pl.read_parquet('./data/parquet_data/train.parquet')
 # test = pl.read_parquet ('./data/parquet_data/test.parquet')
@@ -61,6 +70,7 @@ for aid, idx in aid2idx.items():
     index.add_item(idx, w2vec.wv.vectors[idx])
 
 index.build(10)
+import IPython;IPython.embed(color='neutral');exit(1) 
 
 
 

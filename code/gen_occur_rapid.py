@@ -9,6 +9,7 @@ import argparse
 
 parser = argparse.ArgumentParser()
 parser.add_argument('--mode', choices=['valid', 'test'])
+parser.add_argument('--out', type=str)
 args = parser.parse_args()
 
 print('We will use RAPIDS version', cudf.__version__)
@@ -165,7 +166,7 @@ def create_covisitation(fn_heart, DISK_PIECES, save_top, output_name):
         tmp = tmp.loc[tmp.n < save_top].drop('n',axis=1)
         
         # SAVE PART TO DISK (convert to pandas first uses less memory)
-        tmp.to_pandas().to_parquet(f'exp2/top_{save_top}_{output_name}_v{VER}_{PART}.pqt')
+        tmp.to_pandas().to_parquet(f'{args.out}/top_{save_top}_{output_name}_v{VER}_{PART}.pqt')
 
 
 ## Validation  ---------------

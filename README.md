@@ -1,7 +1,6 @@
 # Otto Recommendation 
 
-## Get the Data
-
+## Quick Start
 Original Data format is *jsonl* format, but jsonl take tool much time to process with,
 so just use the processed data by kaggle's user.
 
@@ -13,9 +12,9 @@ so just use the processed data by kaggle's user.
 2. `pip install kaggle`
 
 
-#### Create data folder
-```
-mkdir data
+#### Create some necessary folder
+```bash
+mkdir data exp
 ```
 
 
@@ -37,10 +36,9 @@ This data contains:
 ### 2. Train/Test data
 
 #### Get the data
-```
+```bash
 kaggle datasets download -d columbia2131/otto-chunk-data-inparquet-format -p data/
 unzip data/otto-chunk-data-inparquet-format.zip -d data/chunked_parquet/
-
 ```
 This data contains:
 * train
@@ -49,6 +47,22 @@ This data contains:
     * processed **test** data in chunked parquet format in `test_parquet` folder 
 
 ### 3. Baseline score
+
+#### Co-visitation 
+
+##### Local Score:
+
+| Overall Recall | 0.56134
+|   ----  | ----  |
+| clicks_recall | 0.52557
+| carts_recall  | 0.40675
+| orders_recall | 0.64460
+
+##### run
+
+```bash
+bash scripts/run_covisitation.sh
+```
 
 
 

@@ -1,3 +1,4 @@
+from re import sub
 from tqdm.auto import tqdm
 tqdm.pandas()
 
@@ -17,6 +18,8 @@ import argparse
 
 parser = argparse.ArgumentParser()
 
+parser.add_argument('--pqt', type=str, required=True)
+parser.add_argument('--group', type=str, required=True)
 parser.add_argument('--mode', choices=['valid', 'test'])
 
 args = parser.parse_args()
@@ -120,60 +123,7 @@ def suggest_buys(df):
     # USE TOP20 TEST ORDERS
     return session, result + list(top_orders)[:20-len(result)]
 
-def hits(b):
-    # b[0] : session id
-    # b[1] : ground truth
-    # b[2] : aids prediction 
-    return b[0], len(set(b[1]).intersection(set(b[2]))), np.clip(len(b[1]), 0, 20)
 
-
-def otto_metric_piece(values, typ, verbose=True):
-
-    global valid_labels , benchmark
-    """计算单一指标的recall
-    c1
-              session                                             labels
-    0        11098528  [11830, 1732105, 588923, 884502, 1157882, 5717...
-    1        11098529  [1105029, 295362, 132016, 459126, 890962, 1135...
-    2        11098530  [409236, 264500, 1603001, 963957, 254154, 5830..
-    """
-    c1 = pd.DataFrame(values, columns=["labels"]).reset_index().rename({"index":"session"}, axis=1)
-
-    """a 加入了两列：type == order和 ground_truth
-             session    type                                       ground_truth                labels
-    0       11098528  orders  [990658, 950341, 1462506, 1561739, 907564, 369...            [11830, 1732105, 588923, 884502, 1157882, 5717...
-    1       11098530  orders                                           [409236]            [409236, 264500, 1603001, 963957, 254154, 5830...
-    2       11098531  orders                                          [1365569]            [396199, 1271998, 452188, 1728212, 1365569, 62... 
-    """
-    import IPython;IPython.embed(color='neutral');exit(1) 
-
-    a = valid_labels.loc[valid_labels['type'] == typ].merge(c1, how='left', on=['session'])
-    b = [[a0, a1, a2] for a0, a1, a2 in zip(a['session'], a['ground_truth'], a['labels'])]
-    c = df_parallelize_run(hits, b)
-    """c
-    [[11098528        1       11]
-     [11098530        1        1]
-     [11098531        1        1]
-    """
-    c = np.array(c)
-    recall = c[:, 1].sum() / c[:, 2].sum()
-    print('{} recall = {:.5f} (vs {:.5f} in benchmark)'.format(typ ,recall, benchmark[typ]))
-    
-    return recall
-
-
-# #### 计算三项type的recall
-def otto_metric(clicks, carts, orders, verbose = True):
-    score = 0
-    score += weights["clicks"] * otto_metric_piece(clicks, "clicks", verbose = verbose)
-    score += weights['carts'] * otto_metric_piece(carts, "carts", verbose = verbose)
-    score += weights["orders"] * otto_metric_piece(orders, "orders", verbose = verbose)
-    if verbose:
-        print('=============')
-        print('Overall Recall = {:.5f} (vs {:.5f} in benchmark)'.format(score, benchmark["all"]))
-        print('=============')
-    
-    return score
 
 ## ----------------------
 
@@ -186,7 +136,7 @@ if args.mode == 'valid':
     DISK_PIECES = 4
 
     print("load top_20_clicks ...")
-    temp = df_parallelize_load(pqt_to_dict, [pd.read_parquet(f'./exp2/top_20_valid_clicks_v1_{v}.pqt') for v in range(0, 4)])
+    temp = df_parallelize_load(pqt_to_dict, [pd.read_parquet(f'{args.pqt}/top_20_valid_clicks_v1_{v}.pqt') for v in range(0, 4)])
 
     temp[0].update(temp[1])
     temp[0].update(temp[2])
@@ -196,7 +146,7 @@ if args.mode == 'valid':
 
 
     print("load top_20_buys ...")
-    temp = df_parallelize_load(pqt_to_dict, [pd.read_parquet(f'exp2/top_15_valid_carts_orders_v1_{v}.pqt') for v in range(0, 4)])
+    temp = df_parallelize_load(pqt_to_dict, [pd.read_parquet(f'{args.pqt}/top_15_valid_carts_orders_v1_{v}.pqt') for v in range(0, 4)])
 
     temp[0].update(temp[1])
     temp[0].update(temp[2])
@@ -207,7 +157,7 @@ if args.mode == 'valid':
     gc.collect()
 
     print("load buy2buy ...")
-    top_20_buy2buy = pqt_to_dict( pd.read_parquet(f'./exp2/top_15_valid_buy2buy_v1_0.pqt') )
+    top_20_buy2buy = pqt_to_dict( pd.read_parquet(f'{args.pqt}/top_15_valid_buy2buy_v1_0.pqt') )
 
 
     '''
@@ -237,7 +187,7 @@ if args.mode == 'valid':
     PIECES = 5
     valid_bysession_list = []
     for PART in range(PIECES):
-        with open(f'./exp/group/valid_group_tolist_{PART}_1.pkl', 'rb') as f:
+        with open(f'{args.group}/group/valid_group_tolist_{PART}_1.pkl', 'rb') as f:
             valid_bysession_list.extend(pickle.load(f))
     print(len(valid_bysession_list))
 
@@ -248,29 +198,23 @@ if args.mode == 'valid':
     val_clicks = pd.Series([f[1] for f in temp], index=[f[0] for f in temp])
 
 
-    _ = otto_metric_piece(val_clicks, "clicks")
-    import IPython;IPython.embed(color='neutral');exit(1) 
-
     print('Predict val buys ...')
     # Predict on all sessions in parallel
     temp = df_parallelize_run(suggest_buys, valid_bysession_list)
     val_buys = pd.Series([f[1]  for f in temp], index=[f[0] for f in temp])
 
 
+    # Generate three type of submission to evaluation
+    def series_to_csv(series):
+        out_df = pd.DataFrame({'session_type': series.index, 'labels': series.to_list()})
+        out_df['labels'] = [' '.join(map(str, l)) for l in out_df['labels'] ]
+        return out_df
+
+    for _type, ser in zip(['clicks', 'carts', 'orders'], [val_clicks, val_buys, val_buys]):
+        out_df = series_to_csv(ser) 
+        out_df.to_csv(f'submission_{_type}.csv', index=False)
 
 
-
-
-    benchmark = {"clicks":0.5255597442145808, "carts":0.4093328152483512, "orders":0.6487936598117477, "all":.5646320148830121}
-    weights = {'clicks': 0.10, 'carts': 0.30, 'orders': 0.60}
-
-
-    _ = otto_metric_piece(val_buys, "orders")
-
-    _ = otto_metric_piece(val_buys, "carts")
-
-
-    _ = otto_metric(val_clicks, val_buys, val_buys)
 
 
 elif args.mode == 'test':
@@ -278,24 +222,16 @@ elif args.mode == 'test':
 
     # ## Test
 
-    # Here a submission file is created.
-
-    # In[ ]:
-
 
     test = load_test('./data/chunked_parquet/test_parquet/*')
     print('Test data has shape',test.shape)
     test.head()
 
-
-    # In[ ]:
-
-
     print("load buy2buy ...")
-    top_20_buy2buy = pqt_to_dict( pd.read_parquet(f'./exp2/top_15_test_buy2buy_v1_0.pqt') )
+    top_20_buy2buy = pqt_to_dict( pd.read_parquet(f'{args.pqt}/top_15_test_buy2buy_v1_0.pqt') )
 
     print("load top_20_clicks ...")
-    temp = df_parallelize_load(pqt_to_dict, [pd.read_parquet(f'./exp2/top_20_test_clicks_v1_{v}.pqt') for v in range(0, 4)])
+    temp = df_parallelize_load(pqt_to_dict, [pd.read_parquet(f'{args.pqt}/top_20_test_clicks_v1_{v}.pqt') for v in range(0, 4)])
 
     temp[0].update(temp[1])
     temp[0].update(temp[2])
@@ -303,7 +239,7 @@ elif args.mode == 'test':
     top_20_clicks = temp[0]
 
     print("load top_20_buys ...")
-    temp = df_parallelize_load(pqt_to_dict, [pd.read_parquet(f'exp2/top_15_test_carts_orders_v1_{v}.pqt') for v in range(0, 4)])
+    temp = df_parallelize_load(pqt_to_dict, [pd.read_parquet(f'{arg.pqt}/top_15_test_carts_orders_v1_{v}.pqt') for v in range(0, 4)])
 
     temp[0].update(temp[1])
     temp[0].update(temp[2])
@@ -326,7 +262,7 @@ elif args.mode == 'test':
     PIECES = 5
     test_bysession_list = []
     for PART in range(PIECES):
-        with open(f'./exp/group/test_group_tolist_{PART}_1.pkl', 'rb') as f:
+        with open(f'{args.group}/group/test_group_tolist_{PART}_1.pkl', 'rb') as f:
             test_bysession_list.extend(pickle.load(f))
     print(len(test_bysession_list))
 
