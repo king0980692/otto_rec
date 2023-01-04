@@ -9,6 +9,7 @@ import argparse
 
 parser = argparse.ArgumentParser()
 parser.add_argument('--submission_dir', type=str , required=True)
+parser.add_argument('--valid_labels', type=str , required=True)
 args = parser.parse_args()
 
 benchmark = {"clicks":0.5255597442145808, "carts":0.4093328152483512, "orders":0.6487936598117477, "all":.5646320148830121}
@@ -46,6 +47,7 @@ def otto_metric_piece(values, typ):
     '''
 
     c1 = pd.DataFrame(values, columns=["labels"]).reset_index().rename({"index":"session"}, axis=1)
+
     """a 加入了两列：type == order和 ground_truth
              session    type                                  ground_truth            labels
     0       11098528  orders  [990658, 950341, 1462506, 1561739, 907564, 369..]   [11830, 1732105, 588923, 884502, 1157882, 5717...
@@ -96,7 +98,7 @@ def otto_metric(clicks, carts, orders, verbose = True):
 valid_labels = pd.read_parquet('./data/split_chunked_parquet/test_labels.parquet')
 
 def load_type_df(path, type):
-    df = pd.read_csv(f'./submission_{type}.csv')
+    df = pd.read_csv(f'./w2v_submission_{type}.csv')
     df = pd.Series(df.labels.to_list() , index = df.session_type.to_list())
     df = df.str.split().apply(lambda x: [int(i) for i in x])
 
@@ -126,6 +128,7 @@ orders_df = orders_df['session_type'].apply(lambda x:x[:-7])
 '''
 
 clicks_df = load_type_df(args.submission_dir, 'clicks')
+
 carts_df = load_type_df(args.submission_dir, 'carts')
 orders_df = load_type_df(args.submission_dir, 'orders')
 

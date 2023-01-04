@@ -20,4 +20,6 @@ python3 code/rec_by_rapid.py --mode valid --pqt exp/ --group exp
 
 
 # 4. evaluation
-python3 tools/evaluation.py --submission_dir ./
+python3 tools/evaluation.py \
+    --submission_dir ./ \
+    --valid_labels ./data/split_chunked_parquet/test_labels.parquet

@@ -96,5 +96,5 @@ for st in session_types:
     modified_predictions.session_type = modified_predictions.session_type.astype('str') + f'_{st}'
     prediction_dfs.append(modified_predictions)
 
-submission = pd.concat(prediction_dfs).reset_index(drop=True)
-submission.to_csv(f'{args.out}/submission.csv', index=False)
+# submission = pd.concat(prediction_dfs).reset_index(drop=True)
+# submission.to_csv(f'{args.out}/submission.csv', index=False)
