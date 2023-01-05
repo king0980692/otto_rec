@@ -1,4 +1,4 @@
-import argparse, logging
+import argparse, logging, pickle
 import json
 from collections import Counter, defaultdict
 from pathlib import Path
@@ -94,8 +94,9 @@ def compute_i2i(
 
     return knn_session, knn_next
 
-def load_tops(
+def compute_pop(
     jsonl: Path,
+    save: Path,
     skip_lines: int,
     logger: logging.Logger,
 ):
@@ -114,12 +115,12 @@ def load_tops(
             session = data['session']
             for event in data['events']:
                 pops[event['type']][event['aid']] += 1.
-    tops = {}
-    for tp in pops:
-        tops[tp] = sorted(pops[tp], key=pops[tp].get, reverse=True)[:100]
-        tops[tp] = list(map(str, tops[tp]))
 
-    logger.info(tops)
+    logger.info('save to')
+    logger.info(save)
+    with save.open('wb') as f:
+        pickle.dump(pops, f)
+
     return tops
 
 
@@ -176,30 +177,19 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='Argument Parser')
     parser.add_argument('--train_jsonl', help='path to train.jsonl')
     parser.add_argument('--test_jsonl', help='path to train.jsonl')
+    parser.add_argument('--save_pop', help='path to pop feature')
     parser.add_argument('--embed_path', default=None, help='path to embeddings')
     parser.add_argument('--i2i_path', default=None, help='path to i2i scores')
     args = parser.parse_args()
 
-    knn_tops = load_tops(
+    # feature: popularity
+    compute_pop(
         jsonl = Path(args.train_jsonl),
+        save = Path(f"{args.save_pop}.train"),
         skip_lines = 6000000,
         logger = logger,
     )
-    dump_knn(
-        knn_tops,
-        path = Path(f"{args.train_jsonl}.knn"),
-        logger = logger,
-    )
-    knn_tops = load_tops(
-        jsonl = Path(args.test_jsonl),
-        skip_lines = 0,
-        logger = logger,
-    )
-    dump_knn(
-        knn_tops,
-        path = Path(f"{args.test_jsonl}.knn"),
-        logger = logger,
-    )
+    exit()
 
     knn_session, knn_next = compute_i2i(
         jsonl = Path(args.train_jsonl),

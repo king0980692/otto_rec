@@ -19,7 +19,7 @@ def dump_graphs(
 
     logger.info('load from')
     logger.info(train_jsonl)
-    session2aid = []
+    session2aid, session2aid_tp, session2aid_w10  = [], [], []
     with train_jsonl.open('r') as f:
         for _ in tqdm(range(skip_lines)):
             next(f)
@@ -27,14 +27,41 @@ def dump_graphs(
             data = json.loads(line)
             session = data['session']
             aids = [event['aid'] for event in data['events']]
-            aids_counter = Counter(aids)
-            for aid in aids_counter:
-                session2aid.append(f"s{session}\t{aid}\t{aids_counter[aid]}")
+            aid_tps = [f"{event['aid']}-{event['type']}" for event in data['events']]
+            counter = Counter(aids)
+            for aid in counter:
+                session2aid.append(f"s{session}\t{aid}\t{counter[aid]}")
+            counter = Counter(aid_tps)
+            for aid_tp in counter:
+                session2aid_tp.append(f"s{session}\t{aid_tp}\t{counter[aid_tp]}")
+
+            start = 0
+            end = start + 10
+            window = 0
+            while (start < len(aids)):
+                counter = Counter(aids[start:end])
+                for aid in counter:
+                    session2aid_w10.append(f"s{session}-w{window}\t{aid}\t{counter[aid]}")
+                start += 5
+                end += 5
+                window += 1
 
     logger.info('save to')
     logger.info(save_path/'s2a.tsv')
     with (save_path/'s2a.tsv').open('w') as f:
         f.write('\n'.join(session2aid))
+        f.write('\n')
+
+    logger.info('save to')
+    logger.info(save_path/'s2a_tp.tsv')
+    with (save_path/'s2a_tp.tsv').open('w') as f:
+        f.write('\n'.join(session2aid_tp))
+        f.write('\n')
+
+    logger.info('save to')
+    logger.info(save_path/'s2a_w10.tsv')
+    with (save_path/'s2a_w10.tsv').open('w') as f:
+        f.write('\n'.join(session2aid_w10))
         f.write('\n')
 
 
