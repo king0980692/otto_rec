@@ -20,8 +20,8 @@ def jsonl_to_df(fn):
     chunks = pd.read_json(fn, lines=True, chunksize=chunks_size)
 
 
-    for chunk in chunks:
-        for row_idx, session_data in tqdm(chunk.iterrows()):
+    for chunk in tqdm(chunks):
+        for row_idx, session_data in chunk.iterrows():
             num_event = len(session_data.events)
             sessions += ([session_data.session] * num_event)
 
@@ -30,14 +30,16 @@ def jsonl_to_df(fn):
                 tss.append(event['ts'])
                 types.append(event['type'])
 
-    return pd.DataFrame(data = {'session': sessions, 'aids': aids, 'ts':tss, 'types': type})
+    return pd.DataFrame(data = {'session': sessions, 'aids': aids, 'ts':tss, 'types': types})
 
 Path("{args.out}/parquet_data").mkdir(parents=True, exist_ok=True)
+
 train_df = jsonl_to_df(args.train_jsonl)
-train_df.type = train_df.type.astype(np.uint8)
+import IPython;IPython.embed(color='neutral');exit(1) 
+# train_df.type = train_df.type.astype(np.uint8)
 train_df.to_parquet(f'{args.out}/train.pqrquet', index=False)
 
 test_df = jsonl_to_df(args.test_jsonl)
-test_df.type = test_df.type.astype(np.uint8)
+# test_df.type = test_df.type.astype(np.uint8)
 test_df.to_parquet(f'{args.out}/test.pqrquet', index=False)
 

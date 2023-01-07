@@ -122,10 +122,13 @@ def train_test_split(session_chunks: JsonReader, train_path: Path, test_path: Pa
     split_millis = test_days * 24 * 60 * 60 * 1000
     split_ts = max_ts - split_millis
     train_items = set()
+
     Path(train_path).parent.mkdir(parents=True, exist_ok=True)
     train_file = open(train_path, "w")
+
     Path(test_path).parent.mkdir(parents=True, exist_ok=True)
     test_file = open(test_path, "w")
+
     for chunk in tqdm(session_chunks, desc="Splitting sessions"):
         for _, session in chunk.iterrows():
             session = session.to_dict()
@@ -136,7 +139,10 @@ def train_test_split(session_chunks: JsonReader, train_path: Path, test_path: Pa
                 if len(session['events']) >= 2:
                     train_items.update([event['aid'] for event in session['events']])
                     train_file.write(json.dumps(session) + "\n")
+
     train_file.close()
+
+
     test_file.close()
     filter_unknown_items(test_path, train_items)
 

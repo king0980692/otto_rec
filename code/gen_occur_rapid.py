@@ -5,11 +5,13 @@ import pandas as pd, numpy as np
 import glob, gc
 import cudf
 import argparse
-
+import pickle5 as pickle
+cudf.set_option("default_integer_bitwidth", 32)
+cudf.set_option("default_float_bitwidth", 32)
 
 parser = argparse.ArgumentParser()
-parser.add_argument('--mode', choices=['valid', 'test'])
-parser.add_argument('--out', type=str)
+parser.add_argument('--mode', choices=['valid', 'test'], required=True)
+parser.add_argument('--out', type=str, required=True)
 args = parser.parse_args()
 
 print('We will use RAPIDS version', cudf.__version__)
@@ -112,7 +114,6 @@ def heart_clicks(df, from_, to_, ndays = 1):
 ## -------------
 
 def create_covisitation(fn_heart, DISK_PIECES, save_top, output_name):
-    
     SIZE = 1.86e6 / DISK_PIECES
     
     # COMPUTE IN PARTS FOR MEMORY MANGEMENT
@@ -159,14 +160,24 @@ def create_covisitation(fn_heart, DISK_PIECES, save_top, output_name):
         
         # SAVE TOP 
         tmp = tmp.reset_index(drop=True)
+
+
         tmp['n'] = tmp.groupby('aid_x').aid_y.cumcount()
 
-        # tmp = tmp.loc[tmp.n < save_top].drop('n',axis=1)
+        #tmp.loc[tmp.n < 30].drop('n', axis=1).to_pandas().to_parquet(f'{args.out}/{output_name}_v{VER}_{PART}.pqt')
+
+        # Generate wgt parquets
+        tmp_dict = {k : g.wgt.to_pandas().to_dict() for k, g in tqdm(tmp.loc[tmp.n < 30].set_index('aid_y').groupby('aid_x'))}
+
+        with open(f"{args.out}/{output_name}.pkl", 'wb') as p:
+            pickle.dump(tmp_dict,p)
 
         tmp = tmp.loc[tmp.n < save_top].drop('n',axis=1)
         
         # SAVE PART TO DISK (convert to pandas first uses less memory)
         tmp.to_pandas().to_parquet(f'{args.out}/top_{save_top}_{output_name}_v{VER}_{PART}.pqt')
+
+        return tmp_dict
 
 
 ## Validation  ---------------
@@ -183,8 +194,11 @@ if args.mode =='valid':
     CHUNK = int( np.ceil( len(files) / 6 ))
     print(f'We will process {len(files)} files, in groups of {READ_CT} and chunks of {CHUNK}.')
     print('gen carts order')
+
+
     # carts order
     create_covisitation(fn_heart=heart_carts_order, DISK_PIECES=4, save_top = 15, output_name = "valid_carts_orders")
+    
 
     print('gen buy 2 buy')
     # buy2buy

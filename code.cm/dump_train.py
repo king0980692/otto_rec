@@ -508,13 +508,18 @@ if __name__ == '__main__':
     parser.add_argument('--train_jsonl', help='path to train.jsonl')
     parser.add_argument('--valid_jsonl', help='path to valid.jsonl')
     parser.add_argument('--test_jsonls', nargs='+', help='path to test.jsonl')
+
     parser.add_argument('--train_path', default=None, help='path to saving train data')
     parser.add_argument('--valid_path', default=None, help='path to loading valid data')
     parser.add_argument('--test_path', default=None, help='path to loading test data')
+
     parser.add_argument('--embed_paths', nargs='+', default=None, help='path to embeddings')
+
     parser.add_argument('--feature_gen', default=None, help='path to saving/loading feature pickle')
     parser.add_argument('--feature_names', nargs='+', help='feature name as surffix')
+
     parser.add_argument('--knn_paths', nargs='+', default=None, help='path to knn')
+
     parser.add_argument('--top_path', default=None, help='path to knn')
     parser.add_argument('--model_folder', help='folder for saving models')
     parser.add_argument('--submit_path', help='path for saving models')
@@ -533,6 +538,7 @@ if __name__ == '__main__':
             knn_paths = [Path(path) for path in args.knn_paths],
             embed_paths = [Path(path) for path in args.embed_paths],
         )
+
         if args.save_feature_gen:
             logger.info('save feature pickle to')
             logger.info(args.feature_gen)

@@ -1,7 +1,7 @@
 from annoy import AnnoyIndex
 import pandas as pd
 import numpy as np
-
+import pickle5 as pickle
 from collections import defaultdict
 import logging
 
@@ -59,8 +59,12 @@ w2vec = Word2Vec.load('./w2v.model')
 print("Train w2v model ..")
 # w2vec = Word2Vec(sentences=sentences, vector_size=32, min_count=2, workers=32, window=3,negative=10, sg=1, epochs=1)
 # w2vec = Word2Vec(sentences=sentences, vector_size=32, min_count=1, workers=48, epochs=5, negative=10, window=3)
-w2vec = Word2Vec(sentences=sentences, vector_size=50, epochs=5, sg=1, window=3, sample=1e-3, ns_exponent=1, min_count=1, workers=args.worker)
+w2vec = Word2Vec(sentences=sentences, vector_size=50, epochs=5, window=5, sample=1e-3, ns_exponent=1, min_count=2, workers=args.worker,negative=10)
 w2vec.save('w2v.model')
 print("Train w2v model done !!")
 
+aid2idx = {aid: i for i, aid in enumerate(w2vec.wv.index_to_key)}
+embedding = { aid: w2vec.wv.vectors[idx] for aid, idx in aid2idx.items()}
 
+with open("./exp/w2v.emb", 'wb') as f:
+    pickle.dump(embedding, f)

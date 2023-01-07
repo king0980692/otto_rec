@@ -1,12 +1,13 @@
 set -xe
 # 1.
-python3 code/gen_occur_rapid.py --mode valid --out exp &
+#python3 code/gen_occur_rapid.py --mode valid --out exp 
 
 # 2.
-mkdir -p exp/group
-kaggle datasets download -d adaubas/otto-valid-test-list -p exp
-unzip exp/otto-valid-test-list.zip -d exp/group
-rm exp/*.zip
+#mkdir -p exp/group
+#kaggle datasets download -d adaubas/otto-valid-test-list -p exp
+#unzip exp/otto-valid-test-list.zip -d exp/group
+#rm exp/*.zip
+
 # or
 #python3 tools/gen_group.py \
     #--valid_dir ./data/split_chunked_parquet/test_parquet \
@@ -16,10 +17,13 @@ rm exp/*.zip
 
 wait
 # 3.
-python3 code/rec_by_rapid.py --mode valid --pqt exp/ --group exp
+#python3 code/rec_by_rapid.py --mode train --pqt exp/ --group exp/  --out ./output
+python3 code/rec_by_rapid.py --mode valid --pqt exp/ --group exp/  --out ./output
+#python3 code/rec_by_rapid.py --mode valid --pqt exp/ --group exp/  --out ./output
 
 
 # 4. evaluation
-python3 tools/evaluation.py \
-    --submission_dir ./ \
-    --valid_labels ./data/split_chunked_parquet/test_labels.parquet
+#python3 tools/evaluation.py \
+    #--submission_dir ./output \
+    #--model cov \
+    #--valid_labels ./data/split_chunked_parquet/test_labels.parquet

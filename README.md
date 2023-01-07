@@ -64,5 +64,21 @@ This data contains:
 bash scripts/run_covisitation.sh
 ```
 
+#### Word2vec
+
+##### Local Score:
+
+=============
+| Overall Recall | 0.51324
+|   ----  | ----  |
+| clicks_recall | 0.42695
+| carts_recall  | 0.36441
+| orders_recall | 0.60204
+============= 
 
 
+##### run
+
+```bash
+bash scripts/run_w2v.sh
+```
