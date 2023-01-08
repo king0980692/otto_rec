@@ -37,7 +37,7 @@ type_labels = {'clicks':0, 'carts':1, 'orders':2}
 #type_weight_multipliers = {'clicks': 1, 'carts': 6, 'orders': 3}
 type_weight_multipliers = {0: 1, 1: 6, 2: 3}
 
-def load_test(files):    
+def load_df(files):    
     dfs = []
     for e, chunk_file in enumerate(glob.glob(files)):
         chunk = pd.read_parquet(chunk_file)
@@ -134,242 +134,90 @@ def suggest_buys(df, top_n=20):
 ## ----------------------
 
 if args.mode == 'train':
-    train = load_test('./data/split_chunked_parquet/train_parquet/*')
-
-
-    DISK_PIECES = 4
-
-    print("load top_20_clicks ...")
-    temp = df_parallelize_load(pqt_to_dict, [pd.read_parquet(f'{args.pqt}/top_20_valid_clicks_v1_{v}.pqt') for v in range(0, 4)])
-
-    temp[0].update(temp[1])
-    temp[0].update(temp[2])
-    temp[0].update(temp[3])
-    top_20_clicks = temp[0]
-
-
-
-    print("load top_20_buys ...")
-    temp = df_parallelize_load(pqt_to_dict, [pd.read_parquet(f'{args.pqt}/top_15_valid_carts_orders_v1_{v}.pqt') for v in range(0, 4)])
-
-    temp[0].update(temp[1])
-    temp[0].update(temp[2])
-    temp[0].update(temp[3])
-    top_20_buys = temp[0]
-
-    del temp
-    gc.collect()
-
-    print("load buy2buy ...")
-    top_20_buy2buy = pqt_to_dict( pd.read_parquet(f'{args.pqt}/top_15_valid_buy2buy_v1_0.pqt') )
-
-
-
-    # TOP CLICKS AND ORDERS IN TEST
-    top_clicks = train.loc[train['type']==0, 'aid'].value_counts().index.values[:20]
-    top_orders = train.loc[train['type']==2, 'aid'].value_counts().index.values[:20]
-
-    print('Here are size of our 3 co-visitation matrices:')
-    print( len( top_20_clicks ), len( top_20_buy2buy ), len( top_20_buys ) )
-
-
-    # In[5]:
-
-    # valid_labels = pd.read_parquet('./data/split_chunked_parquet/test_labels.parquet')
-    # import IPython;IPython.embed(color='neutral');exit(1) 
-
+    print("train")
+    df = load_df('./data/split_chunked_parquet/train_parquet/*')
     PIECES = 500
-    valid_bysession_list = []
-    for PART in range(PIECES):
-        with open(f'{args.group}/group/train_group_tolist_{PART}_1.pkl', 'rb') as f:
-            valid_bysession_list.extend(pickle.load(f))
-    print(len(valid_bysession_list))
-
-
-    print('Predict train clicks ...')
-    # Predict on all sessions in parallel
-    temp = df_parallelize_run(suggest_clicks, valid_bysession_list)
-    val_clicks = pd.Series([f[1] for f in temp], index=[f[0] for f in temp])
-
-
-    print('Predict val buys ...')
-    # Predict on all sessions in parallel
-    temp = df_parallelize_run(suggest_buys, valid_bysession_list)
-    val_buys = pd.Series([f[1]  for f in temp], index=[f[0] for f in temp])
-
-
-    # Generate three type of submission to evaluation
-    def series_to_csv(series):
-        out_df = pd.DataFrame({'session_type': series.index, 'labels': series.to_list()})
-        out_df['labels'] = [' '.join(map(str, l)) for l in out_df['labels'] ]
-        return out_df
-
-    for _type, ser in zip(['clicks', 'carts', 'orders'], [val_clicks, val_buys, val_buys]):
-        out_df = series_to_csv(ser) 
-        out_df.to_csv(f'{args.out}/cov_train_prediction_{_type}.csv', index=False)
+    top_from = 'valid'
 
 elif args.mode == 'valid':
-    valid = load_test('./data/split_chunked_parquet/test_parquet/*')
-    print('Valid data has shape',valid.shape)
-    valid.head()
-
-
-    DISK_PIECES = 4
-
-    print("load top_20_clicks ...")
-    temp = df_parallelize_load(pqt_to_dict, [pd.read_parquet(f'{args.pqt}/top_20_valid_clicks_v1_{v}.pqt') for v in range(0, 4)])
-
-    temp[0].update(temp[1])
-    temp[0].update(temp[2])
-    temp[0].update(temp[3])
-    top_20_clicks = temp[0]
-
-
-
-    print("load top_20_buys ...")
-    temp = df_parallelize_load(pqt_to_dict, [pd.read_parquet(f'{args.pqt}/top_15_valid_carts_orders_v1_{v}.pqt') for v in range(0, 4)])
-
-    temp[0].update(temp[1])
-    temp[0].update(temp[2])
-    temp[0].update(temp[3])
-    top_20_buys = temp[0]
-
-    del temp
-    gc.collect()
-
-    print("load buy2buy ...")
-    top_20_buy2buy = pqt_to_dict( pd.read_parquet(f'{args.pqt}/top_15_valid_buy2buy_v1_0.pqt') )
-
-
-    '''
-    top_20_clicks = pqt_to_dict( pd.read_parquet(f'../input/otto-co-visitation-matrices/top_20_valid_clicks_v{VER}_0.pqt') )
-    for k in range(1, DISK_PIECES): 
-        top_20_clicks.update( pqt_to_dict( pd.read_parquet(f'../input/otto-co-visitation-matrices/top_20_valid_clicks_v{VER}_{k}.pqt') ) )
-
-
-    top_20_buys = pqt_to_dict( pd.read_parquet(f'../input/otto-co-visitation-matrices/top_15_valid_carts_orders_v{VER}_0.pqt') )
-    for k in range(1, DISK_PIECES): 
-        top_20_buys.update( pqt_to_dict( pd.read_parquet(f'../input/otto-co-visitation-matrices/top_15_valid_carts_orders_v{VER}_{k}.pqt') ) )
-        
-    '''
-
-    # TOP CLICKS AND ORDERS IN TEST
-    top_clicks = valid.loc[valid['type']==0, 'aid'].value_counts().index.values[:20]
-    top_orders = valid.loc[valid['type']==2, 'aid'].value_counts().index.values[:20]
-
-    print('Here are size of our 3 co-visitation matrices:')
-    print( len( top_20_clicks ), len( top_20_buy2buy ), len( top_20_buys ) )
-
-
-    # In[5]:
-
-    valid_labels = pd.read_parquet('./data/split_chunked_parquet/test_labels.parquet')
-
+    print("valid")
+    df = load_df('./data/split_chunked_parquet/test_parquet/*')
     PIECES = 5
-    valid_bysession_list = []
-    for PART in range(PIECES):
-        with open(f'{args.group}/group/valid_group_tolist_{PART}_1.pkl', 'rb') as f:
-            valid_bysession_list.extend(pickle.load(f))
-    print(len(valid_bysession_list))
-
-
-    print('Predict val clicks ...')
-    # Predict on all sessions in parallel
-    temp = df_parallelize_run(suggest_clicks, valid_bysession_list)
-    val_clicks = pd.Series([f[1] for f in temp], index=[f[0] for f in temp])
-
-
-    print('Predict val buys ...')
-    # Predict on all sessions in parallel
-    temp = df_parallelize_run(suggest_buys, valid_bysession_list)
-    val_buys = pd.Series([f[1]  for f in temp], index=[f[0] for f in temp])
-
-
-    # Generate three type of submission to evaluation
-    def series_to_csv(series):
-        out_df = pd.DataFrame({'session_type': series.index, 'labels': series.to_list()})
-        out_df['labels'] = [' '.join(map(str, l)) for l in out_df['labels'] ]
-        return out_df
-
-    for _type, ser in zip(['clicks', 'carts', 'orders'], [val_clicks, val_buys, val_buys]):
-        out_df = series_to_csv(ser) 
-        out_df.to_csv(f'{args.out}/cov_submission_{_type}.csv', index=False)
-
-
-
-
+    top_from = 'valid'
 elif args.mode == 'test':
-    # ##------------------------------------
-
-    # ## Test
-
-
-    test = load_test('./data/chunked_parquet/test_parquet/*')
-    print('Test data has shape',test.shape)
-    test.head()
-
-    print("load buy2buy ...")
-    top_20_buy2buy = pqt_to_dict( pd.read_parquet(f'{args.pqt}/top_15_test_buy2buy_v1_0.pqt') )
-
-    print("load top_20_clicks ...")
-    temp = df_parallelize_load(pqt_to_dict, [pd.read_parquet(f'{args.pqt}/top_20_test_clicks_v1_{v}.pqt') for v in range(0, 4)])
-
-    temp[0].update(temp[1])
-    temp[0].update(temp[2])
-    temp[0].update(temp[3])
-    top_20_clicks = temp[0]
-
-    print("load top_20_buys ...")
-    temp = df_parallelize_load(pqt_to_dict, [pd.read_parquet(f'{arg.pqt}/top_15_test_carts_orders_v1_{v}.pqt') for v in range(0, 4)])
-
-    temp[0].update(temp[1])
-    temp[0].update(temp[2])
-    temp[0].update(temp[3])
-    top_20_buys = temp[0]
-
-    del temp
-    gc.collect()
-
-    # TOP CLICKS AND ORDERS IN TEST
-    top_clicks = test.loc[test['type']==0, 'aid'].value_counts().index.values[:20]
-    top_orders = test.loc[test['type']==2, 'aid'].value_counts().index.values[:20]
-
-    print('Here are size of our 3 co-visitation matrices:')
-    print( len( top_20_clicks ), len( top_20_buy2buy ), len( top_20_buys ) )
-
-
-
-
+    print("test")
+    df = load_df('./data/chunked_parquet/test_parquet/*')
     PIECES = 5
-    test_bysession_list = []
-    for PART in range(PIECES):
-        with open(f'{args.group}/group/test_group_tolist_{PART}_1.pkl', 'rb') as f:
-            test_bysession_list.extend(pickle.load(f))
-    print(len(test_bysession_list))
+    top_from = 'test'
+
+## ----------------------
+DISK_PIECES = 4
+
+## Top 20 Clicks
+print("load top_20_clicks ...")
+temp = df_parallelize_load(pqt_to_dict, [pd.read_parquet(f'{args.pqt}/top_20_{top_from}_clicks_v1_{v}.pqt') for v in range(0, DISK_PIECES)])
+
+temp[0].update(temp[1])
+temp[0].update(temp[2])
+temp[0].update(temp[3])
+top_20_clicks = temp[0]
+
+## Top 20 Buys
+print("load top_20_buys ...")
+temp = df_parallelize_load(pqt_to_dict, [pd.read_parquet(f'{args.pqt}/top_15_{top_from}_carts_orders_v1_{v}.pqt') for v in range(0, 4)])
+
+temp[0].update(temp[1])
+temp[0].update(temp[2])
+temp[0].update(temp[3])
+top_20_buys = temp[0]
+
+
+## Top 20 Buy2buy
+print("load buy2buy ...")
+top_20_buy2buy = pqt_to_dict( pd.read_parquet(f'{args.pqt}/top_15_{top_from}_buy2buy_v1_0.pqt') )
+
+del temp
+gc.collect()
+
+
+# TOP CLICKS AND ORDERS IN TEST
+top_clicks = df.loc[df['type']==0, 'aid'].value_counts().index.values[:20]
+top_orders = df.loc[df['type']==2, 'aid'].value_counts().index.values[:20]
+
+print('Here are size of our 3 co-visitation matrices:')
+print( len( top_20_clicks ), len( top_20_buy2buy ), len( top_20_buys ) )
 
 
 
+# valid_labels = pd.read_parquet('./data/split_chunked_parquet/test_labels.parquet')
+# import IPython;IPython.embed(color='neutral');exit(1) 
 
-    # Predict on all sessions in parallel
-    temp = df_parallelize_run(suggest_clicks, test_bysession_list)
-    clicks_pred_df = pd.Series([f[1] for f in temp], index=[f[0] for f in temp])
-    clicks_pred_df = clicks_pred_df.add_suffix("_clicks")
-    clicks_pred_df.head()
-
-
-
-
-    # Predict on all sessions in parallel
-    temp = df_parallelize_run(suggest_buys, test_bysession_list)
-    buys_pred_df = pd.Series([f[1] for f in temp], index=[f[0] for f in temp])
-    orders_pred_df = buys_pred_df.add_suffix("_orders")
-    carts_pred_df = buys_pred_df.add_suffix("_carts")
+valid_bysession_list = []
+for PART in range(PIECES):
+    with open(f'{args.group}/group/{args.mode}_group_tolist_{PART}_1.pkl', 'rb') as f:
+        valid_bysession_list.extend(pickle.load(f))
+print(len(valid_bysession_list))
 
 
+print(f'Predict {args.mode} clicks ...')
+# Predict on all sessions in parallel
+temp = df_parallelize_run(suggest_clicks, valid_bysession_list)
+top_clicks = pd.Series([f[1] for f in temp], index=[f[0] for f in temp])
 
-    pred_df = pd.concat([clicks_pred_df, orders_pred_df, carts_pred_df]).reset_index()
-    pred_df.columns = ["session_type", "labels"]
-    pred_df["labels"] = pred_df.labels.progress_apply(lambda x: " ".join(map(str,x)))
-    pred_df.to_csv("submission.csv", index=False)
-    pred_df.head()
+
+print(f'Predict {args.mode} buys ...')
+# Predict on all sessions in parallel
+temp = df_parallelize_run(suggest_buys, valid_bysession_list)
+top_buys = pd.Series([f[1]  for f in temp], index=[f[0] for f in temp])
+
+
+# Generate three type of submission to evaluation
+def series_to_csv(series):
+    out_df = pd.DataFrame({'session_type': series.index, 'labels': series.to_list()})
+    out_df['labels'] = [' '.join(map(str, l)) for l in out_df['labels'] ]
+    return out_df
+
+for _type, ser in zip(['clicks', 'carts', 'orders'], [top_clicks, top_buys, top_buys]):
+    out_df = series_to_csv(ser) 
+    out_df.to_csv(f'{args.out}/cov_{args.mode}_predictions_{_type}.csv', index=False)
 

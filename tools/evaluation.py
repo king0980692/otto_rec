@@ -11,6 +11,7 @@ parser = argparse.ArgumentParser()
 parser.add_argument('--submission_dir', type=str , required=True)
 parser.add_argument('--valid_labels', type=str , required=True)
 parser.add_argument('--model', type=str , required=True)
+parser.add_argument('--mode', choices=['valid','test'] , required=True)
 args = parser.parse_args()
 
 benchmark = {"clicks":0.5255597442145808, "carts":0.4093328152483512, "orders":0.6487936598117477, "all":.5646320148830121}
@@ -99,7 +100,7 @@ def otto_metric(clicks, carts, orders, verbose = True):
 valid_labels = pd.read_parquet('./data/split_chunked_parquet/test_labels.parquet')
 
 def load_type_df(path, type, model):
-    df = pd.read_csv(f'{path}/{model}_submission_{type}.csv')
+    df = pd.read_csv(f'{path}/{model}_{args.mode}_predictions_{type}.csv')
     df = pd.Series(df['labels'].to_list() , index = df.session_type.to_list())
     df = df.str.split().apply(lambda x: [int(x[i]) for i in range(min(len(x), 20))])
 

@@ -1,5 +1,5 @@
 VER = 1
-from tqdm.auto import tqdm
+from tqdm.auto import tqdm, trange
 tqdm.pandas()
 import pandas as pd, numpy as np
 import glob, gc
@@ -117,28 +117,28 @@ def create_covisitation(fn_heart, DISK_PIECES, save_top, output_name):
     SIZE = 1.86e6 / DISK_PIECES
     
     # COMPUTE IN PARTS FOR MEMORY MANGEMENT
-    for PART in range(DISK_PIECES):
-        print()
-        print('--- DISK PART',PART+1)
-        print("from : {}, to : {}".format(PART * SIZE,  (PART+1) *SIZE))
+    for PART in trange(DISK_PIECES):
+        # print()
+        # print('--- DISK PART',PART+1)
+        # print("from : {}, to : {}".format(PART * SIZE,  (PART+1) *SIZE))
     
         # MERGE IS FASTEST PROCESSING CHUNKS WITHIN CHUNKS
         # => OUTER CHUNKS
         for j in range(6):
             a = j * CHUNK
             b = min( (j + 1) * CHUNK, len(files) )
-            print(f'Processing files {a} thru {b - 1} in groups of {READ_CT}...')
+            # print(f'Processing files {a} thru {b - 1} in groups of {READ_CT}...')
         
             # => INNER CHUNKS
             for k in range(a,b,READ_CT):
                 # READ FILE
                 df = [read_file(files[k])]
-                print(k,', ',end = '')
+                # print(k,', ',end = '')
                 # print("i: ")
                 for i in range(1, READ_CT): 
                     if k+i<b: df.append( read_file(files[k+i]) )
-                    print(k+i, end=' ')
-                print()
+                    # print(k+i, end=' ')
+                # print()
 
                 df = cudf.concat(df, ignore_index=True,axis=0)
                 
@@ -147,7 +147,7 @@ def create_covisitation(fn_heart, DISK_PIECES, save_top, output_name):
                 # COMBINE INNER CHUNKS
                 if k == a: tmp2 = df
                 else: tmp2 = tmp2.add(df, fill_value = 0)
-            print()
+            # print()
             # COMBINE OUTER CHUNKS
             if a == 0: tmp = tmp2
             else: tmp = tmp.add(tmp2, fill_value = 0)
@@ -174,10 +174,10 @@ def create_covisitation(fn_heart, DISK_PIECES, save_top, output_name):
 
         tmp = tmp.loc[tmp.n < save_top].drop('n',axis=1)
         
+        print(f"Saving into {args.out}/top_{save_top}_{output_name}_v{VER}_{PART}.pqt")
         # SAVE PART TO DISK (convert to pandas first uses less memory)
         tmp.to_pandas().to_parquet(f'{args.out}/top_{save_top}_{output_name}_v{VER}_{PART}.pqt')
 
-        return tmp_dict
 
 
 ## Validation  ---------------
@@ -192,22 +192,22 @@ if args.mode =='valid':
     # CHUNK PARAMETERS
     READ_CT = 5
     CHUNK = int( np.ceil( len(files) / 6 ))
-    print(f'We will process {len(files)} files, in groups of {READ_CT} and chunks of {CHUNK}.')
-    print('gen carts order')
-
+    # print(f'We will process {len(files)} files, in groups of {READ_CT} and chunks of {CHUNK}.')
 
     # carts order
+    print('gen carts order')
     create_covisitation(fn_heart=heart_carts_order, DISK_PIECES=4, save_top = 15, output_name = "valid_carts_orders")
     
 
-    print('gen buy 2 buy')
     # buy2buy
+    print('gen buy 2 buy')
     create_covisitation(fn_heart=heart_buy2buy, DISK_PIECES = 1, save_top = 15, output_name = "valid_buy2buy")
 
 
-    print('gen click')
     # clicks
+    print('gen click')
     create_covisitation(fn_heart=heart_clicks, DISK_PIECES = 4, save_top = 20, output_name = "valid_clicks")
+
     del data_cache
     gc.collect()
 

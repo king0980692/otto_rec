@@ -17,6 +17,7 @@ import pandas as pd
 import argparse
 parser = argparse.ArgumentParser()
 parser.add_argument('--mode', choices=['train', 'valid', 'test'] , required=True)
+parser.add_argument('--data', type=str , required=True)
 parser.add_argument('--group', type=str , required=True)
 parser.add_argument('--embed', type=str , required=True)
 parser.add_argument('--dim', type=int, required=True)
@@ -108,289 +109,111 @@ def rec_by_emb(s, top_n=20):
     return session, labels
 
 
+def rec_w2v(session_IDs, session_types):
+
+    labels = []
+
+    type_weight_multipliers = {0: 1, 1: 6, 2: 3}
+
+
+    for id, (AIDs, types) in tqdm(enumerate(zip(session_IDs, session_types)), total=len(session_types)):
+
+        # here we don't have 20 aids to output -- we will use word2vec embeddings to generate candidates!
+        AIDs = list(dict.fromkeys(AIDs[::-1]))
+
+        # let's grab the most recent aid
+        most_recent_aid = None
+        for _aid in AIDs:
+            if _aid in aid2idx:
+                most_recent_aid = _aid
+                break
+
+
+
+        if most_recent_aid == None:
+            weights=np.logspace(0.1,1,len(AIDs),base=2, endpoint=True)-1
+
+            aids_temp=defaultdict(lambda: 0)
+            for aid,w,t in zip(AIDs,weights,types):
+                aids_temp[aid]+= w * type_weight_multipliers[t]
+
+            sorted_aids=[k for k, v in sorted(aids_temp.items(), key=lambda item: -item[1])]
+            labels.append(sorted_aids[:20])
+
+        else:
+            # if most_recent_aid in aid2idx:
+            nns = [ index_to_key[i] 
+                    for i in index.get_nns_by_item(
+                        aid2idx[most_recent_aid], 21)[1:]
+                  ]
+            labels.append((AIDs+nns)[:20])
+    return labels
+
 
 
 ## -------
 if args.mode == 'train':
-    train = load_df('./data/split_chunked_parquet/train_parquet/')
-    embed = pickle.load(open(args.embed, 'rb'))
-
-    '''
-    w2vec = Word2Vec.load(f'{args.model_dir}/w2v.model')
-    '''
-
-    # aid2idx = {aid: i for i, aid in enumerate(w2vec.wv.index_to_key)}
-    aid2idx = {aid: i for i, (aid,emb) in enumerate(embed.items())}
-    index_to_key = {i: aid for i, (aid,emb) in enumerate(embed.items())}
-
-    index = AnnoyIndex(args.dim, 'angular')
-
-    for aid, idx in aid2idx.items():
-        index.add_item(idx, embed[aid])
-
-    index.build(10)
-
-
-    '''
+    df = load_df('./data/split_chunked_parquet/train_parquet/')
     PIECES = 500
-    train_bysession_list = []
-    for PART in trange(PIECES, desc='Reading group: '):
-        with open(f'{args.group}/group/train_group_tolist_{PART}_1.pkl', 'rb') as f:
-            train_bysession_list.extend(pickle.load(f))
-    print("Total Session number: {}".format(len(train_bysession_list)))
-    '''
-
-    session_types = ['clicks', 'carts', 'orders']
-
-    train_session_AIDs = train.reset_index(drop=True).groupby('session')['aid'].progress_apply(list)
-    train_session_types = train.reset_index(drop=True).groupby('session')['type'].progress_apply(list)
-
-
-    print("Start Recommendation ...")
-    '''
-    # Predict on all sessions in parallel
-    temp = df_parallelize_run(rec_by_emb, train_bysession_list)
-    import IPython;IPython.embed(color='neutral');exit(1) 
-    train_w2v = pd.Series([f[1]  for f in temp], index=[f[0] for f in temp])
-
-    labels_as_strings = [' '.join([str(l) for l in lls]) for lls in labels]
-
-    predictions = pd.DataFrame(data={'session_type': test_session_AIDs.index, 'labels': labels_as_strings})
-
-    prediction_dfs = []
-
-    for st in session_types:
-        modified_predictions = predictions.copy()
-        modified_predictions.to_csv(f'{args.out}/w2v_{args.type}_predictions_{st}.csv', index=False)
-        modified_predictions.session_type = modified_predictions.session_type.astype('str') + f'_{st}'
-        prediction_dfs.append(modified_predictions)
-    '''
-    labels = []
-
-    type_weight_multipliers = {0: 1, 1: 6, 2: 3}
-
-    for AIDs, types in tqdm(zip(train_session_AIDs, train_session_types), total=len(train_session_types)):
-
-        '''
-        if len(AIDs) >= 20:
-            # if we have enough aids (over equals 20) we don't need to look for candidates! we just use the old logic
-            weights=np.logspace(0.1,1,len(AIDs),base=2, endpoint=True)-1
-
-            aids_temp=defaultdict(lambda: 0)
-            for aid,w,t in zip(AIDs,weights,types):
-                aids_temp[aid]+= w * type_weight_multipliers[t]
-
-            sorted_aids=[k for k, v in sorted(aids_temp.items(), key=lambda item: -item[1])]
-            labels.append(sorted_aids[:20])
-        else:
-        '''
-        # here we don't have 20 aids to output -- we will use word2vec embeddings to generate candidates!
-        AIDs = list(dict.fromkeys(AIDs[::-1]))
-
-        # let's grab the most recent aid
-        most_recent_aid = AIDs[0]
-
-        if most_recent_aid in aid2idx:
-            nns = [ index_to_key[i] 
-                    for i in index.get_nns_by_item(
-                        aid2idx[most_recent_aid], 31)[1:]
-                  ]
-            labels.append((AIDs+nns)[:20])
-        else:
-            weights=np.logspace(0.1,1,len(AIDs),base=2, endpoint=True)-1
-
-            aids_temp=defaultdict(lambda: 0)
-            for aid,w,t in zip(AIDs,weights,types):
-                aids_temp[aid]+= w * type_weight_multipliers[t]
-
-            sorted_aids=[k for k, v in sorted(aids_temp.items(), key=lambda item: -item[1])]
-            labels.append(sorted_aids[:20])
-
-
-
-
-    labels_as_strings = [' '.join([str(l) for l in lls]) for lls in labels]
-
-    predictions = pd.DataFrame(data={'session_type': train_session_AIDs.index, 'labels': labels_as_strings})
-
-    prediction_dfs = []
-
-    for st in session_types:
-        modified_predictions = predictions.copy()
-        modified_predictions.to_csv(f'{args.out}/w2v_{args.mode}_predictions_{st}.csv', index=False)
-        modified_predictions.session_type = modified_predictions.session_type.astype('str') + f'_{st}'
-        prediction_dfs.append(modified_predictions)
-
-    # submission = pd.concat(prediction_dfs).reset_index(drop=True)
-    # submission.to_csv(f'{args.out}/submission.csv', index=False)
-## -------
 
 elif args.mode == 'valid':
     test = load_df("./data/split_chunked_parquet/test_parquet/")
-    embed = pickle.load(open(args.embed, 'rb'))
-
-    '''
-    w2vec = Word2Vec.load(f'{args.model_dir}/w2v.model')
-    '''
-    print("Start Recommendation ...")
-
-    # aid2idx = {aid: i for i, aid in enumerate(w2vec.wv.index_to_key)}
-    aid2idx = {aid: i for i, (aid,emb) in enumerate(embed.items())}
-    index_to_key = {i: aid for i, (aid,emb) in enumerate(embed.items())}
-
-    index = AnnoyIndex(args.dim, 'angular')
-
-    for aid, idx in aid2idx.items():
-        index.add_item(idx, embed[aid])
-
-    index.build(10)
-
-
-    session_types = ['clicks', 'carts', 'orders']
-
-    test_session_AIDs = test.reset_index(drop=True).groupby('session')['aid'].apply(list)
-    test_session_types = test.reset_index(drop=True).groupby('session')['type'].apply(list)
-
-    labels = []
-
-    type_weight_multipliers = {0: 1, 1: 6, 2: 3}
-
-    for AIDs, types in tqdm(zip(test_session_AIDs, test_session_types), total=len(test_session_types)):
-
-        '''
-        if len(AIDs) >= 20:
-            # if we have enough aids (over equals 20) we don't need to look for candidates! we just use the old logic
-            weights=np.logspace(0.1,1,len(AIDs),base=2, endpoint=True)-1
-
-            aids_temp=defaultdict(lambda: 0)
-            for aid,w,t in zip(AIDs,weights,types):
-                aids_temp[aid]+= w * type_weight_multipliers[t]
-
-            sorted_aids=[k for k, v in sorted(aids_temp.items(), key=lambda item: -item[1])]
-            labels.append(sorted_aids[:20])
-        else:
-        '''
-        # here we don't have 20 aids to output -- we will use word2vec embeddings to generate candidates!
-        AIDs = list(dict.fromkeys(AIDs[::-1]))
-
-        # let's grab the most recent aid
-        most_recent_aid = AIDs[0]
-
-        if most_recent_aid in aid2idx:
-            nns = [ index_to_key[i] 
-                    for i in index.get_nns_by_item(
-                        aid2idx[most_recent_aid], 31)[1:]
-                  ]
-            labels.append((AIDs+nns)[:20])
-        else:
-            weights=np.logspace(0.1,1,len(AIDs),base=2, endpoint=True)-1
-
-            aids_temp=defaultdict(lambda: 0)
-            for aid,w,t in zip(AIDs,weights,types):
-                aids_temp[aid]+= w * type_weight_multipliers[t]
-
-            sorted_aids=[k for k, v in sorted(aids_temp.items(), key=lambda item: -item[1])]
-            labels.append(sorted_aids[:20])
-
-
-
-
-    labels_as_strings = [' '.join([str(l) for l in lls]) for lls in labels]
-
-    predictions = pd.DataFrame(data={'session_type': test_session_AIDs.index, 'labels': labels_as_strings})
-
-    prediction_dfs = []
-
-    for st in session_types:
-        modified_predictions = predictions.copy()
-        modified_predictions.to_csv(f'{args.out}/w2v_{args.type}_predictions_{st}.csv', index=False)
-        modified_predictions.session_type = modified_predictions.session_type.astype('str') + f'_{st}'
-        prediction_dfs.append(modified_predictions)
-
-    # submission = pd.concat(prediction_dfs).reset_index(drop=True)
-    # submission.to_csv(f'{args.out}/submission.csv', index=False)
+    # df = load_df("./data/split_raw_paruet/test.pqrquet")
+    PIECES = 5
 
 elif args.mode == 'test':
-    test = load_df("./data/chunked_parquet/test_parquet/")
-    embed = pickle.load(open(args.embed, 'rb'))
+    df = load_df("./data/chunked_parquet/test_parquet/")
+    PIECES = 5
 
-    '''
-    w2vec = Word2Vec.load(f'{args.model_dir}/w2v.model')
-    '''
-    print("Start Recommendation ...")
+embed = pickle.load(open(args.embed, 'rb'))
+# aid2idx = {aid: i for i, aid in enumerate(w2vec.wv.index_to_key)}
+aid2idx = {aid: i for i, (aid,emb) in enumerate(embed.items())}
+index_to_key = {i: aid for i, (aid,emb) in enumerate(embed.items())}
 
-    # aid2idx = {aid: i for i, aid in enumerate(w2vec.wv.index_to_key)}
-    aid2idx = {aid: i for i, (aid,emb) in enumerate(embed.items())}
-    index_to_key = {i: aid for i, (aid,emb) in enumerate(embed.items())}
+index = AnnoyIndex(args.dim, 'angular')
 
-    index = AnnoyIndex(args.dim, 'angular')
+for aid, idx in aid2idx.items():
+    index.add_item(idx, embed[aid])
 
-    for aid, idx in aid2idx.items():
-        index.add_item(idx, embed[aid])
-
-    index.build(10)
+index.build(10)
 
 
-    session_types = ['clicks', 'carts', 'orders']
-
-    test_session_AIDs = test.reset_index(drop=True).groupby('session')['aid'].apply(list)
-    test_session_types = test.reset_index(drop=True).groupby('session')['type'].apply(list)
-
-    labels = []
-
-    type_weight_multipliers = {0: 1, 1: 6, 2: 3}
-
-    for AIDs, types in tqdm(zip(test_session_AIDs, test_session_types), total=len(test_session_types)):
-
-        '''
-        if len(AIDs) >= 20:
-            # if we have enough aids (over equals 20) we don't need to look for candidates! we just use the old logic
-            weights=np.logspace(0.1,1,len(AIDs),base=2, endpoint=True)-1
-
-            aids_temp=defaultdict(lambda: 0)
-            for aid,w,t in zip(AIDs,weights,types):
-                aids_temp[aid]+= w * type_weight_multipliers[t]
-
-            sorted_aids=[k for k, v in sorted(aids_temp.items(), key=lambda item: -item[1])]
-            labels.append(sorted_aids[:20])
-        else:
-        '''
-        # here we don't have 20 aids to output -- we will use word2vec embeddings to generate candidates!
-        AIDs = list(dict.fromkeys(AIDs[::-1]))
-
-        # let's grab the most recent aid
-        most_recent_aid = AIDs[0]
-
-        if most_recent_aid in aid2idx:
-            nns = [ index_to_key[i] 
-                    for i in index.get_nns_by_item(
-                        aid2idx[most_recent_aid], 31)[1:]
-                  ]
-            labels.append((AIDs+nns)[:20])
-        else:
-            weights=np.logspace(0.1,1,len(AIDs),base=2, endpoint=True)-1
-
-            aids_temp=defaultdict(lambda: 0)
-            for aid,w,t in zip(AIDs,weights,types):
-                aids_temp[aid]+= w * type_weight_multipliers[t]
-
-            sorted_aids=[k for k, v in sorted(aids_temp.items(), key=lambda item: -item[1])]
-            labels.append(sorted_aids[:20])
+session_list = []
+for PART in trange(PIECES, desc='Reading group: '):
+    with open(f'{args.group}/group/{args.mode}_group_tolist_{PART}_1.pkl', 'rb') as f:
+        session_list.extend(pickle.load(f))
+print("Total Session number: {}".format(len(session_list)))
 
 
+# train_session_AIDs = train.reset_index(drop=True).groupby('session')['aid'].progress_apply(list)
+# train_session_types = train.reset_index(drop=True).groupby('session')['type'].progress_apply(list)
 
+session_IDs = [ s[0] for s in session_list]
+session_AIDs = [ s[1] for s in session_list]
+session_types = [ s[2] for s in session_list]
 
-    labels_as_strings = [' '.join([str(l) for l in lls]) for lls in labels]
+print("Start Recommendation ...")
 
-    predictions = pd.DataFrame(data={'session_type': test_session_AIDs.index, 'labels': labels_as_strings})
+labels = []
 
-    prediction_dfs = []
+type_weight_multipliers = {0: 1, 1: 6, 2: 3}
 
-    for st in session_types:
-        modified_predictions = predictions.copy()
-        modified_predictions.to_csv(f'{args.out}/w2v_{args.type}_predictions_{st}.csv', index=False)
-        modified_predictions.session_type = modified_predictions.session_type.astype('str') + f'_{st}'
-        prediction_dfs.append(modified_predictions)
+'''
+    recommendation function
+'''
+labels = rec_w2v(session_AIDs, session_types)
 
-    # submission = pd.concat(prediction_dfs).reset_index(drop=True)
-    # submission.to_csv(f'{args.out}/submission.csv', index=False)
+labels_as_strings = [' '.join([str(l) for l in lls]) for lls in labels]
+predictions = pd.DataFrame(data={'session_type': session_IDs, 'labels': labels_as_strings})
+
+prediction_dfs = []
+
+# session_types = ['clicks', 'carts', 'orders']
+for st in ['clicks', 'carts', 'orders']:
+    modified_predictions = predictions.copy()
+    modified_predictions.to_csv(f'{args.out}/w2v_{args.mode}_predictions_{st}.csv', index=False)
+    modified_predictions.session_type = modified_predictions.session_type.astype('str') + f'_{st}'
+    prediction_dfs.append(modified_predictions)
+
+# submission = pd.concat(prediction_dfs).reset_index(drop=True)
+# submission.to_csv(f'{args.out}/submission.csv', index=False)
